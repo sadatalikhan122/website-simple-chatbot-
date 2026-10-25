@@ -1,14 +1,31 @@
+from fastapi import FastAPI
+from pydantic import BaseModel, Field
+from uuid import uuid4
+from uuid import UUID
+
 from langchain.agents import create_agent
 from langchain_ollama import ChatOllama
 from langgraph.checkpoint.memory import InMemorySaver
-from langchain.tools import tool
-
-llm= ChatOllama(model="qwen2.5:3b",
-                temperature=0.2,
-                num_ctx=8192)
+from fastapi.responses import FileResponse
+from pathlib import Path
 
 
+filepath=Path(__file__).resolve().parent
+app = FastAPI(title="Optmizcode AI Assistant")
 
+
+
+class UserInput(BaseModel):
+    message: str = Field(min_length=1)
+    thread_id: UUID | None = None
+
+
+
+llm = ChatOllama(
+    model="llama3.2:latest",
+    temperature=0.2,
+    num_ctx=8192
+)
 SYSTEM_PROMPT = """You are the official AI assistant for Optmizcode. 
 
 Your sole identity is the Optmizcode Assistant. Your job is to welcome visitors, help them explore our services, navigate our platform, and answer any questions they have about what Optmizcode offers.
@@ -65,20 +82,52 @@ Only ask a qualifying question after you have explained a service. Do not ask on
 Ask only one question per reply. Never ask a question the user already answered. Never end with "How can I assist you further?" """
 
 
-agent= create_agent(
+
+
+agent = create_agent(
     model=llm,
     system_prompt=SYSTEM_PROMPT,
     checkpointer=InMemorySaver()
-    )
-config = {"configurable": {"thread_id": "user-1"}}
-
-
-while True:
-    user_input=str(input())
-    response = agent.invoke(
-    {"messages": [{"role": "user", "content": user_input}]},
-    config,
 )
 
 
-print(response["messages"][-1].content)
+
+
+@app.get("/")
+async def home():
+   return FileResponse(filepath/ "Ai.html")
+
+
+# Step 6: Chat endpoint
+@app.post("/chat")
+async def chat(data: UserInput):
+
+
+    thread_id = str(data.thread_id or uuid4())
+
+    
+    config = {
+        "configurable": {
+            "thread_id": thread_id
+        }
+    }
+
+    result = await agent.ainvoke(
+        {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": data.message
+                }
+            ]
+        },
+        config=config
+    )
+
+
+    response = result["messages"][-1].content
+
+    return {
+        "thread_id": thread_id,
+        "response": response
+    }
