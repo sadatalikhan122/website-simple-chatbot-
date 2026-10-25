@@ -1,0 +1,182 @@
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Optmizcode AI Chatbot</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f3f5f8;
+        }
+
+        .chatbox {
+            max-width: 450px;
+            margin: 50px auto;
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 20px #0002;
+        }
+
+        h2 {
+            color: #1C3552;
+        }
+
+        #messages {
+            height: 350px;
+            overflow-y: auto;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+
+        .message {
+            padding: 10px;
+            margin: 8px 0;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+
+        .user {
+            background: #dbeafe;
+            text-align: right;
+        }
+
+        .bot {
+            background: #edf1f5;
+        }
+
+        .input-area {
+            display: flex;
+            gap: 8px;
+            margin-top: 15px;
+        }
+
+        input {
+            flex: 1;
+            min-width: 0;
+            padding: 10px;
+        }
+
+        button {
+            background: #1C3552;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            cursor: pointer;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: wait;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="chatbox">
+        <h2>Optmizcode AI Assistant</h2>
+
+        <div id="messages"></div>
+
+        <form id="chatForm" class="input-area">
+            <input
+                type="text"
+                id="message"
+                placeholder="Ask about our services..."
+                required
+            >
+
+            <button id="sendBtn" type="submit">
+                Send
+            </button>
+        </form>
+
+        <button id="newChat" type="button"
+                style="margin-top:10px">
+            New Conversation
+        </button>
+    </div>
+
+    <script>
+        const form = document.getElementById("chatForm");
+        const input = document.getElementById("message");
+        const messages = document.getElementById("messages");
+        const sendBtn = document.getElementById("sendBtn");
+
+        let threadId = sessionStorage.getItem("thread_id");
+
+        function addMessage(text, type) {
+            const div = document.createElement("div");
+
+            div.className = "message " + type;
+            div.textContent = text;
+
+            messages.appendChild(div);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        form.addEventListener("submit", async function(event) {
+            event.preventDefault();
+
+            const userMessage = input.value.trim();
+
+            if (!userMessage) return;
+
+            addMessage(userMessage, "user");
+
+            input.value = "";
+            sendBtn.disabled = true;
+
+            try {
+                const response = await fetch("/chat", {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+
+                    body: JSON.stringify({
+                        message: userMessage,
+                        thread_id: threadId
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error("Server error: " + response.status);
+                }
+
+                const data = await response.json();
+
+                threadId = data.thread_id;
+                sessionStorage.setItem("thread_id", threadId);
+
+                addMessage(data.response, "bot");
+
+            } catch (error) {
+                addMessage("Unable to get a response. Please try again.", "bot");
+                console.error(error);
+
+            } finally {
+                sendBtn.disabled = false;
+                input.focus();
+            }
+        });
+
+        document.getElementById("newChat")
+            .addEventListener("click", function() {
+                sessionStorage.removeItem("thread_id");
+                threadId = null;
+                messages.replaceChildren();
+            });
+    </script>
+
+</body>
+</html>
+
